@@ -1,11 +1,11 @@
 module Taylor where
 
--- "Taylor" is the "Dual Number" type, only recursive - which we may call
--- "Taylor numbers". The first part is a normal function and the second part is
--- the derivative of the function. The advantage of this over the dmath.hs is
--- that you should be able to pass Taylor numbers wherever you write normal
--- number functions and get derivatives also calculated. This includes
--- if-then-else conditionals as well.
+-- "Taylor" is a "Dual Number" type, only recursive - so we may call them
+-- "Taylor numbers". The first part is a normal function value and the second
+-- part is the value of the derivative of the function. The advantage of this
+-- over the dmath.hs is that you should be able to pass Taylor numbers wherever
+-- you write normal number functions and get derivatives also calculated. This
+-- includes if-then-else conditionals as well.
 data Taylor x = Taylor x (Taylor x)
 
 -- f adn = the function part
@@ -13,13 +13,14 @@ data Taylor x = Taylor x (Taylor x)
 f (Taylor f0 _) = f0
 df (Taylor _ df0) = df0
 
+-- Recursive calculation of the nth derivative.
 dfn 0 = f 
 dfn n = dfn (n-1) . df
 
 -- You can provide values for the x variable using this function.
 -- If you have a normal mathematical function to calculate some
 -- value from a given number x, you can evaluate the same function
--- by passing a "dual number" as a value and have both the value
+-- by passing a "taylor number" as a value and have both the value
 -- and the derivative calculated simultaneously.
 x :: (Num a) => a -> Taylor a
 x a = Taylor a 1
