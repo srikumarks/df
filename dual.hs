@@ -7,7 +7,7 @@ module Dual where
 -- a given point. The advantage of this over dmath.hs is that you can
 -- use dual numbers with normal functions, though you cannot use them
 -- to calculate arbitrary derivatives.
-data Dual x = Dual x x
+data Dual x = Dual x x deriving (Show)
 
 -- f adn = the function part
 -- df adn = the derivative part
