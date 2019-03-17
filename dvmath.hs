@@ -165,7 +165,7 @@ slice s a = DF f' df'
             Just j -> f a x j
         df' i = slice s (df i a)
 
-stride start step i = Just (start + i * step)
+stride start step i = start + i * step
 range min max i = if i >= min && i <= max then Just i else Nothing
 
 -- Sometimes, it is also useful to be able to change the shape of
