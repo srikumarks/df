@@ -1,12 +1,12 @@
 module Dual where
 
 -- "Dual" is the "Dual Number" type. The first part is a normal value,
--- and the second part holds the derivative's value. By definiting
+-- and the second part holds the derivative's value. By defining
 -- operations on dual numbers carefully, we're able to simultaneously
 -- calculate a function's value as well as its derivate's value at
 -- a given point. The advantage of this over dmath.hs is that you can
 -- use dual numbers with normal functions, though you cannot use them
--- to calculate arbitrary derivatives.
+-- to calculate higher order derivatives.
 data Dual x = Dual x x deriving (Show)
 
 -- f adn = the function part
