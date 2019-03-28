@@ -1,6 +1,6 @@
 module DMath where
 
--- "DF" is "Differentiable function" The first part is a normal function and
+-- "DF" is "Differentiable function". The first part is a normal function and
 -- the second part is the derivative of the function, which is itself a
 -- differentiable function.  This enables us to calculate as many derivatives
 -- as we want.
@@ -11,7 +11,7 @@ data DF x = DF (x -> x) (DF x)
 f (DF f0 _) = f0
 df (DF _ df0) = df0
 
--- Recursive definition of nth derivative
+-- Recursive definition of the nth derivative
 dfn 0 = id
 dfn n = dfn (n-1) . df
 
