@@ -18,20 +18,23 @@ module DVMath where
 --
 -- Disclaimer: This is still in exploratory mode.
 type Vec i x = i -> x
-data DF i j x = DF (Vec i x -> Vec j x) (i -> DF i j x)
+data DF i j x = Zero | DF (Vec i x -> Vec j x) (i -> DF i j x)
 
 -- f adf = the function part
 -- df i adf = the derivative part
+f Zero = \x i -> 0
 f (DF f0 _) = f0
 df i (DF _ df0) = df0 i
+df i Zero = Zero
 
 -- It is useful to also be able to look at the derivative as though it
 -- increases the "rank" of the function we're dealing with.
-dft :: (Eq i, Eq j) => DF i j x -> DF i (j,i) x
-dft a = DF f' df'
+dft :: (Eq i, Eq j, Num x) => DF i j x -> DF i (j,i) x
+dft Zero = Zero
+dft (DF _ da) = DF f' df'
     where 
-        f' x (j,i) = f (df i a) x j
-        df' i = dft (df i a)
+        f' x (j,i) = f (da i) x j
+        df' i = dft (da i)
 
 -- Recursive definition of nth derivative. The "nth derivative" is no longer
 -- just specifiable with an "n", but needs a list of indices w.r.t. to take
@@ -64,41 +67,53 @@ fromList l = DF (\_ -> (l !!)) (\_ -> 0)
  - operations need some attention though.
  --}
 
+fdf :: (Eq i, Eq j, Real x) => (x -> x) -> (DF i j x -> DF i j x) -> DF i j x -> DF i j x
+fdf a da b = DF (\x i -> a (f b x i)) (\i -> df i b * da b)
+
 -- Basic arithmetic operations
 instance (Eq i, Eq j, Real n) => Num (DF i j n) where
+    a + Zero = a
+    Zero + b = b
     a + b = DF (\x i -> f a x i + f b x i) (\i -> df i a + df i b)
+    a * Zero = Zero
+    Zero * b = Zero
     a * b = DF (\x i -> f a x i * f b x i) (\i -> a * df i b + df i a * b)
+    negate Zero = Zero
     negate a = DF (\x i -> negate (f a x i)) (\i -> negate (df i a))
-    abs a = DF (\x i -> abs (f a x i)) (\i -> df i a * signum a)
+    abs Zero = Zero
+    abs a = fdf abs signum a
+    signum Zero = Zero
     signum a = DF (\x i -> signum (f a x i)) (\i -> 0)
+    fromInteger 0 = Zero
     fromInteger x = DF (\_ _ -> fromInteger x) (\_ -> 0)
 
 -- Reciprocal
 instance (Real n, Fractional n, Eq i, Eq j) => Fractional (DF i j n) where
+    fromRational 0 = Zero
     fromRational x = DF (\_ _ -> fromRational x) (\_ -> 0)
-    recip a = DF (\x i -> 1 / f a x i) (\i -> - df i a / (a * a))
+    recip = fdf recip (\a -> recip (a * a))
 
 -- Scientific functions
 instance (Real n, Floating n, Eq i, Eq j) => Floating (DF i j n) where
     pi = DF (\_ _ -> pi) (\_ -> 0)
-    exp a = DF (\x i -> exp (f a x i)) (\i -> df i a * exp a)
-    log a = DF (\x i -> log (f a x i)) (\i -> df i a / a)
-    sin a = DF (\x i -> sin (f a x i)) (\i -> df i a * cos a)
-    cos a = DF (\x i -> cos (f a x i)) (\i -> - df i a * sin a)
-    asin a = DF (\x i -> asin (f a x i)) (\i -> df i a / sqrt (1 - a * a))
-    acos a = DF (\x i -> acos (f a x i)) (\i -> - df i a / sqrt (1 - a * a))
-    atan a = DF (\x i -> atan (f a x i)) (\i -> df i a / (1 + a * a))
-    sinh a = DF (\x i -> sinh (f a x i)) (\i -> df i a * cosh a)
-    cosh a = DF (\x i -> cosh (f a x i)) (\i -> df i a * sinh a)
-    asinh a = DF (\x i -> asinh (f a x i)) (\i -> df i a / sqrt (1 + a * a))
-    acosh a = DF (\x i -> acosh (f a x i)) (\i -> df i a / sqrt (a * a - 1))
-    atanh a = DF (\x i -> atanh (f a x i)) (\i -> df i a / (1 + a * a))
+    exp = fdf exp exp
+    log = fdf log recip
+    sin = fdf sin cos
+    cos = fdf cos (negate . sin)
+    asin = fdf asin (\a -> recip (sqrt (1 - a * a)))
+    acos = fdf acos (\a -> - recip (sqrt (1 - a * a)))
+    atan = fdf atan (\a -> recip (1 + a * a))
+    sinh = fdf sinh cosh
+    cosh = fdf cosh sinh
+    asinh = fdf asinh (\a -> recip (sqrt (1 + a * a)))
+    acosh = fdf acosh (\a -> recip (sqrt (a * a - 1)))
+    atanh = fdf atanh (\a -> recip (1 + a * a))
 
 -- While using if-then-else is not so straightforward and needs vectors
 -- to be processed into scalars before doing that, we can parameterize
 -- conditionals using a "region" function. While the region function takes
 -- two arguments, it is free to ignore one if it so chooses.
-cond :: (Vec i x -> j -> Bool) -> DF i j x -> DF i j x -> DF i j x
+cond :: (Eq i, Eq j, Num x) => (Vec i x -> j -> Bool) -> DF i j x -> DF i j x -> DF i j x
 cond region a b = DF f' df'
     where
         f' x j = if region x j then f a x j else f b x j
@@ -106,12 +121,14 @@ cond region a b = DF f' df'
 
 -- The famous relu function (rectified linear unit) can be expressed as a such
 -- a conditional.
-relu a = cond (\x j -> f a x j < 0) 0 a
+relu a = cond (\x j -> f a x j < 0) Zero a
                 
 -- There are many kinds of products we can create with vectors.  The outer
 -- product increases the rank of the vectors and is a useful operation before
 -- many kinds of reductions.
 outer :: (Eq i, Eq j, Eq k, Real x) => DF i j x -> DF i k x -> DF i (j,k) x
+outer a Zero = Zero
+outer Zero b = Zero
 outer a b = DF f' df'
     where
         f' x (i,j) = f a x i * f b x j
@@ -122,6 +139,8 @@ outer a b = DF f' df'
 -- parameterize the index range of the summation into an enumeration function
 -- named `dot` in the argument.
 inner :: (Eq i, Eq j, Eq k, Eq l, Real x) => (l -> Int -> Maybe (j,k)) -> DF i j x -> DF i k x -> DF i l x
+inner _ a Zero = Zero
+inner _ Zero b = Zero
 inner dot a b = DF f' df'
     where
         f' x l = sum' x (dot l) 0 0
@@ -135,6 +154,7 @@ inner dot a b = DF f' df'
 -- which does such a summation reduction. Like `inner`, `collapse` also reduces
 -- the rank of the input.
 collapse :: (Eq i, Eq j, Eq k, Real x) => (k -> Int -> Maybe j) -> DF i j x -> DF i k x
+collapse _ Zero = Zero
 collapse dot a = DF f' df'
     where
         f' x k = sum' x (dot k) 0 0
@@ -158,6 +178,7 @@ type Slice j i = i -> Maybe j
 -- A utility to take a slice of a vector. For simplicity, we model the slice
 -- operation as a boolean selector over the index space.
 slice :: (Eq i, Eq j, Eq k, Real x) => Slice j k -> DF i j x -> DF i k x
+slice _ Zero = Zero
 slice s a = DF f' df'
     where
         f' x k = case s k of
@@ -172,6 +193,7 @@ range min max i = if i >= min && i <= max then Just i else Nothing
 -- a vector .. which basically means we change the way its dimensions
 -- are addressed.
 reshape :: (Eq i, Eq j, Eq k, Real x) => (k -> j) -> DF i j x -> DF i k x
+reshape _ Zero = Zero
 reshape shaper a = DF f' df'
     where
         f' x k = f a x (shaper k)
@@ -180,6 +202,8 @@ reshape shaper a = DF f' df'
 -- A dead simple notion of convolution as a reduction operation that does not
 -- result in reduction of rank unlike the inner product.
 conv :: (Eq i, Eq j, Eq k, Real x) => (k -> [(j,k)]) -> DF i j x -> DF i k x -> DF i k x
+conv _ Zero a = Zero
+conv _ kernel Zero = Zero
 conv stride kernel a = DF f' df'
     where
         f' x k = sum (map (\(j,k) -> f kernel x j * f a x k) (stride k))
