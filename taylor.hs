@@ -8,6 +8,35 @@ module Taylor where
 -- includes if-then-else conditionals as well.
 data Taylor x = Taylor x (Taylor x)
 
+-- Simple Show instance to display one term of the series.
+instance (Show x) => Show (Taylor x) where
+    show (Taylor v dv) = ":> " ++ (show v)
+
+-- The "Calculus in coinductive form" paper at -
+-- http://lya.fciencias.unam.mx/favio/publ/cocalculus.pdf
+-- talks about essentially the idea in this module.
+-- The only remaining bit is to use the taylor series
+-- calculated at a particular point of a function
+-- to evaluate it around that value. Towards this end
+-- I define a `teval` function that takes such a "taylor 
+-- number" and uses it as the taylor series to calculate
+-- nearby values for a given deviation x from that point,
+-- up to k terms of the series.
+--
+-- For example, you can define e^x using the Taylor
+-- expansion around 0 as `e = Taylor 1 e`, i.e. by
+-- treating e^x as the solution to the differential
+-- equation dy/dx = y .Now, you can e^x using
+-- `teval 10 e x` which will calculate an approximation
+-- using 10 terms of the series. Similarly, you can calculate
+-- sin(x) also by treating sin(x) as the solution to
+-- d^y/dx^2 = -y, with the initial conditions sin(0) = 0
+-- and sin'(0) = 1 ... which can be expressed as --
+-- `sin0 = Taylor 0.0 (Taylor 1.0 (-sin0))`
+-- and evaluate sin(x) using `teval 10 sin0 x`.
+teval 0 t x = f t
+teval k t x = (teval (k-1) t x) + (dfn k t) * (x ^ k) / fromIntegral (product [1..k])
+
 -- f adn = the function part
 -- df adn = the derivative part
 f (Taylor f0 _) = f0
